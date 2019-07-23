@@ -272,7 +272,7 @@ customers %>%
 
 You'll often find yourself needing to complete several steps with `dplyr` in order to transform your data to the point where it's ready to visualize or model. This is where the ` %>% ` shines, allowing you to chain together as many steps to build a pipeline that takes a raw dataset as input and returns a cleaned-up dataset that's ready for analysis.
 
-Let's try an example. Suppose we want to take our raw data and do the following:
+Let's try an example. Suppose we want to examine the number of customers who have positive, negative, or zero net worth for each value of home ownership. To do that, we need to take our raw data and do the following:
 
 1. Remove `Records`, since we don't need it for our analysis
 2. Filter to only customers with a fixed `Income`
