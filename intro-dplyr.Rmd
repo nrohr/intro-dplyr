@@ -3,7 +3,7 @@ title: "Data Manipulation with `dplyr`"
 output: html_notebook
 ---
 
-The `dplyr` package is built for data manipulation, providing an intuitive set of functions that allow you to do the most common data manipulation procedures in R. ^[https://dplyr.tidyverse.org/] `dplyr` is part of the [tidyverse](https://www.tidyverse.org/), an opinionated set of packages designed for data science workflows, from importing and tidying data to visualization, modeling, and communicating results.
+The [`dplyr`](https://dplyr.tidyverse.org/index.html) package is built for data manipulation, providing an intuitive set of functions that allow you to do the most common data manipulation procedures in R. ^[https://dplyr.tidyverse.org/] `dplyr` is part of the [tidyverse](https://www.tidyverse.org/), an opinionated set of packages designed for data science workflows, from importing and tidying data to visualization, modeling, and communicating results.
 
 Today, we'll learn the five key verbs for manipulating data with `dplyr`:
 
@@ -78,7 +78,7 @@ These ways of selecting variables can be combined for more complex selection:
 
 ```{r}
 customers %>% 
-  select(id:Job, Amount, -Records)
+  select(id:Job, Amount, 11, -Records)
 ```
 
 There are a handful of functions that can be used inside `select()` for more complex matching, which can be useful if you're working with a large number of variables. For example, to select all columns that start with the letter "A":
