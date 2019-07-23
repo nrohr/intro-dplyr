@@ -16,7 +16,6 @@ Today, we'll learn the five key verbs for manipulating data with `dplyr`:
 We'll also cover some more advanced data manipulation topics:
 
 * Performing operations on grouped data with [`group_by()`](https://dplyr.tidyverse.org/reference/group_by.html)
-* Joining multiple data sets
 * Other useful `dplyr` verbs
 
 First, let's read our data into R.
@@ -193,10 +192,10 @@ Traditionally in R this would be done using nested `ifelse()` statements.
 
 
 ```{r}
-customers$NetWorth <- ifelse(customers$Assets > customers$Debt, "positive",
-                             ifelse(customers$Assets < customers$Debt, "negative",
-                                    "zero"))
-customers
+# customers$NetWorth <- ifelse(customers$Assets > customers$Debt, "positive",
+#                              ifelse(customers$Assets < customers$Debt, "negative",
+#                                     "zero"))
+# customers
 ```
 
 
@@ -269,3 +268,68 @@ customers %>%
 ```
 
 `summarize()` will remove the top layer of grouping each time it's called, but `mutate()` will not. It's a good idea to `ungroup()` after you've completed a grouped operation so you don't forget about it later on in a data manipulation pipeline!
+
+# Data manipulation pipelines
+
+You'll often find yourself needing to complete several steps with `dplyr` in order to transform your data to the point where it's ready to visualize or model. This is where the ` %>% ` shines, allowing you to chain together as many steps to build a pipeline that takes a raw dataset as input and returns a cleaned-up dataset that's ready for analysis.
+
+Let's try an example. Suppose we want to take our raw data and do the following:
+
+1. Remove `Records`, since we don't need it for our analysis
+2. Filter to only customers with a fixed `Income`
+3. Reorder our columns, so that we start with our ID, then demographics/personal characteristics, then monetary info and info about the loan itself
+4. Sort by loan size from largest to smallest
+5. Create a column for Net Worth indicating whether it's positive, negative, or zero
+6. Summarize our data by counting the number of customers with positive, negative, and zero net worth for each type of home ownership status
+
+This can be achieved with:
+
+```{r}
+customers %>% 
+  select(-Records) %>%
+  filter(Job == "fixed") %>% 
+  select(id, Age, Marital, Home, Job, Seniority, Expenses, Income, Assets, Debt, Amount, Time, Price, Status) %>% 
+  arrange(desc(Amount)) %>% 
+  mutate(NetWorth = case_when(Assets > Debt ~ "positive",
+                              Assets < Debt ~ "negative",
+                              Assets == Debt ~ "zero")) %>% 
+  group_by(Home, NetWorth) %>% 
+  summarize(Count = n())
+```
+
+Great! Now let's make a bar plot of the data so we can compare these numbers visually. There are two ways to do this. One is that we can pipe the code above directly into our code for plotting data using the `ggplot2` package:
+
+```{r}
+library(ggplot2)
+
+customers %>% 
+  select(-Records) %>%
+  filter(Job == "fixed") %>% 
+  select(id, Age, Marital, Home, Job, Seniority, Expenses, Income, Assets, Debt, Amount, Time, Price, Status) %>% 
+  arrange(desc(Amount)) %>% 
+  mutate(NetWorth = case_when(Assets > Debt ~ "positive",
+                              Assets < Debt ~ "negative",
+                              Assets == Debt ~ "zero")) %>% 
+  group_by(Home, NetWorth) %>% 
+  summarize(Count = n()) %>% 
+ggplot(aes(x = Home, fill = NetWorth, y = Count)) +
+  geom_bar(position = "dodge", stat = "identity")
+```
+
+Another way to do this is to save the output of our `dplyr` code to an object, then call `ggplot()` on that object. This is a good idea if we might use that same summarized data later (e.g., for another visualization, model, or to do additional operations on it) so that we don't have to keep rerunning that same code on the raw data.
+
+```{r}
+customers_plot <- customers %>% 
+  select(-Records) %>%
+  filter(Job == "fixed") %>% 
+  select(id, Age, Marital, Home, Job, Seniority, Expenses, Income, Assets, Debt, Amount, Time, Price, Status) %>% 
+  arrange(desc(Amount)) %>% 
+  mutate(NetWorth = case_when(Assets > Debt ~ "positive",
+                              Assets < Debt ~ "negative",
+                              Assets == Debt ~ "zero")) %>% 
+  group_by(Home, NetWorth) %>% 
+  summarize(Count = n()) 
+
+ggplot(customers_plot, aes(x = Home, fill = NetWorth, y = Count)) +
+  geom_bar(position = "dodge", stat = "identity")
+```
