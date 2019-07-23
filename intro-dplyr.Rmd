@@ -1,0 +1,271 @@
+---
+title: "Data Manipulation with `dplyr`"
+output: html_notebook
+---
+
+The `dplyr` package is built for data manipulation, providing an intuitive set of functions that allow you to do the most common data manipulation procedures in R. ^[https://dplyr.tidyverse.org/] `dplyr` is part of the [tidyverse](https://www.tidyverse.org/), an opinionated set of packages designed for data science workflows, from importing and tidying data to visualization, modeling, and communicating results.
+
+Today, we'll learn the five key verbs for manipulating data with `dplyr`:
+
+* [`select()`](https://dplyr.tidyverse.org/reference/select.html) to choose variables or columns in a dataset
+* [`filter()`](https://dplyr.tidyverse.org/reference/filter.html) to choose rows of a dataset
+* [`arrange()`](https://dplyr.tidyverse.org/reference/arrange.html) to change the ordering of rows
+* [`mutate()`](https://dplyr.tidyverse.org/reference/mutate.html) to add new variables/columns
+* [`summarise()`](https://dplyr.tidyverse.org/reference/summarise.html) to reduce multiple values down to a single summary
+
+We'll also cover some more advanced data manipulation topics:
+
+* Performing operations on grouped data with [`group_by()`](https://dplyr.tidyverse.org/reference/group_by.html)
+* Joining multiple data sets
+* Other useful `dplyr` verbs
+
+First, let's read our data into R.
+
+```{r message=FALSE}
+library(dplyr)
+library(readr)
+customers <- read_csv("credit_data.csv")
+customers
+```
+
+This dataset contains information on 4,454 customers who have taken out loans. The variables include a unique ID, their loan status, job seniority (in years), type of home ownership, time of requested loan, age, marital status, existence of records, type of job, amount of expenses, income, assets, debt, amount of requested loan, and price of good.
+
+# `select()`
+
+The `select()` verb allows us to select only the columns or variables that we want, and throw away the rest. Your data set may have hundreds or even thousands of variables in it, but often you'll only need a few to do the analysis or build the model you're working on.
+
+Let's select their id, loan status, time of requested loan, amount of requested loan, and price of good.
+
+```{r}
+customers %>%
+  select(id, Status, Time, Amount, Price)
+```
+
+Now we've reduced our data set from 15 columns to only the 5 we need.
+
+The ` %>% ` symbol is called the _pipe_ operator because it "pipes" the result of one line of code into the code on the next line. ^[The pipe operator comes from the `magrittr` package and is included in `dplyr`: https://magrittr.tidyverse.org/] 
+
+Specifically, it takes the result of the code before the pipe and passes it on as the first argument to whatever comes after the pipe. That means that the code above is exactly equal to:
+
+```{r}
+select(customers, id, Status, Time, Amount, Price)
+```
+
+Pipes help make our code easier to understand and are very useful for data manipulation tasks that require multiple steps, as we'll see later on.
+
+`select()` will choose the columns listed inside the function - no need for quotations, `c()` or anything like that. `select()` can also be used more flexibly with other syntax. For example, perhaps we want to select all of the columns going left to right from `id` to `Marital`:
+
+```{r}
+customers %>% 
+  select(id:Marital)
+```
+
+Or the first 5 columns from left to right:
+
+```{r}
+customers %>% 
+  select(1:5)
+```
+
+Or everything except `Records`:
+
+```{r}
+customers %>% 
+  select(-Records)
+```
+
+These ways of selecting variables can be combined for more complex selection:
+
+```{r}
+customers %>% 
+  select(id:Job, Amount, -Records)
+```
+
+There are a handful of functions that can be used inside `select()` for more complex matching, which can be useful if you're working with a large number of variables. For example, to select all columns that start with the letter "A":
+
+```{r}
+customers %>% 
+  select(starts_with("A"))
+```
+
+More useful functions that work inside `select()` can be found [here](https://dplyr.tidyverse.org/reference/select.html#useful-functions).
+
+# `filter()`
+
+The `filter()` verb allows us to filter our data by rows, selecting only those that meet the criteria we define. For example, we may only want to look at customers who own their home:
+
+```{r}
+customers %>% 
+  filter(Home == "owner")
+```
+
+Note the `==` sign, rather than just `=`. The double equals sign is for checking whether two values are equal. 
+
+We may also want to choose rows where the value of a variable is not equal to something. For example, customers who are not on a fixed income:
+
+```{r}
+customers %>% 
+  filter(Job != "fixed")
+```
+
+You may wish to filter by multiple criteria. If you want to match on all of several criteria, you can separate them with a comma or with the `&` symbol:
+
+```{r}
+customers %>% 
+  filter(Home == "owner",
+         Job != "fixed")
+
+# is the same as
+
+customers %>% 
+  filter(Home == "owner" & Job != "fixed")
+```
+
+You might also encounter cases where you want to choose observations if they meet one criterion _OR_ another. This can be done using the `|` symbol:
+
+```{r}
+customers %>% 
+  filter(Home == "rent" | Home == "parents")
+```
+
+For variables that can include multiple possible values of text, the `%in%` operator can be very helpful in checking whether a variable is equal to one of several values. e.g., the code above could be expressed as:
+
+```{r}
+customers %>% 
+  filter(Home %in% c("rent", "parents"))
+```
+
+# `arrange()`
+
+The `arrange()` verb is used to reorder rows of a data set. Let's sort our dataset by the amount of the requested loan:
+
+```{r}
+customers %>% 
+  arrange(Amount)
+```
+
+By default, `arrange`() will sort data in ascending order (from lowest to highest). If we want to sort in descending order, we can use the `desc()` function inside of `arrange()`:
+
+```{r}
+customers %>% 
+  arrange(desc(Amount))
+```
+
+`arrange()` can be called on multiple variables and will sort by those variables in the order they appear in your code:
+
+```{r}
+customers %>% 
+  arrange(Income, Assets, Debt)
+```
+
+`arrange()` can be useful when used with `slice()`, which selects rows based on their ordering. So if we wanted to get just the 5 highest-value loans:
+
+```{r}
+customers %>% 
+  arrange(desc(Amount)) %>% 
+  slice(1:5)
+```
+
+# `mutate()`
+
+The `mutate()` verb allows us to create new variables from existing variables, or to edit existing variables.
+
+Let's create a new variable `DownPayment` that's the price of the good minus the amount of the loan:
+
+```{r}
+customers %>% 
+  mutate(DownPayment = Price - Amount)
+```
+
+Note that we first specify the name of the new variable we want to create, use the single equals sign, and then describe how we want to use existing variables to create the new variable.
+
+We can also change existing variables by specifying the name of an existing column in `mutate()`, rather than a new variable name. For example, let's say that Expenses and Income were accidentally divided by 10 in our dataset before we loaded it, so we want to multiply both by 10 before we continue our analysis:
+
+```{r}
+customers %>% 
+  mutate(Expenses = Expenses * 10,
+         Income = Income * 10)
+```
+
+You'll often find yourself needing to create a variable whose value is _conditional_ on other variables in your data. For example, you may want to create a new variable `NetWorth` and set it to "positive" if the customer's Assets > Debt, "negative" if Assets < Debt, or "zero" if Assets = Debt.
+
+Traditionally in R this would be done using nested `ifelse()` statements. 
+
+
+```{r}
+customers$NetWorth <- ifelse(customers$Assets > customers$Debt, "positive",
+                             ifelse(customers$Assets < customers$Debt, "negative",
+                                    "zero"))
+customers
+```
+
+
+`dplyr` includes a special `case_when()` function that makes specifying this sort of conditional mutation much simpler and easier to read:
+
+```{r}
+customers %>% 
+  mutate(NetWorth = case_when(Assets > Debt ~ "positive",
+                              Assets < Debt ~ "negative",
+                              Assets == Debt ~ "zero"))
+```
+
+There are many [useful functions](https://dplyr.tidyverse.org/reference/mutate.html#useful-functions-available-in-calculations-of-variables) in `dplyr` that can be used inside `mutate()`. For example, `percent_rank` will calculate a percentile scaled to 0-1:
+
+```{r}
+customers %>% 
+  mutate(AmountPct = percent_rank(Amount))
+```
+
+There are a few other functions that are useful for mutating multiple columns at once. We can use `mutate_at()` to perform the same operation on a set of columns. For example, let's log-transform everything from `Expenses` to `Price`:
+
+```{r}
+customers %>% 
+  mutate_at(vars(Expenses:Price), log)
+```
+
+Or we can use `mutate_if()` to (e.g.) multiple everything that's a number by 10:
+
+```{r}
+x10 <- function(x) x*10
+customers %>% 
+  mutate_if(is.numeric, x10)
+```
+
+Similar functions exist for the other `dplyr` verbs.
+
+# `summarise()` and grouped operations
+
+Also known as `summarize()`, this verb allows you to reduce multiple values down to a single value for the purpose of summarization. Inside the verb, you'll include the name of a new variable and a function for calculating the summary. For example, let's calculate the average loan amount:
+
+```{r}
+customers %>% 
+  summarize(AvgAmount = mean(Amount))
+```
+
+We often want to calculate summaries on grouped data. For example, perhaps we want to know not the average loan amount of all loans, but according to each type of `Job`. To do this, we first call the `group_by()` function to specify that the tibble should be grouped by `Job` before calling `summarize()`:
+
+```{r}
+customers %>% 
+  group_by(Job) %>% 
+  summarize(AvgAmount = mean(Amount),
+            n = n())
+```
+
+`group_by()` can be called on multiple variables, which will create a groups for each combination:
+
+```{r}
+customers %>% 
+  group_by(Job, Marital) %>% 
+  summarize(AvgAmount = mean(Amount),
+            n = n())
+```
+
+`group_by()` can also be used to perform grouped operations with other `dplyr` verbs. For example, suppose we want to create a new column, `SDJobAmt`, which is the standard deviation of the loan amounts for all other customers who have the same job status. To do that, we'll first `group_by` `Job`, then call `mutate()` on the grouped data to create the new variable:
+
+```{r}
+customers %>% 
+  group_by(Job) %>% 
+  mutate(SDJobAmt = sd(Amount))
+```
+
+`summarize()` will remove the top layer of grouping each time it's called, but `mutate()` will not. It's a good idea to `ungroup()` after you've completed a grouped operation so you don't forget about it later on in a data manipulation pipeline!
