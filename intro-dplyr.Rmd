@@ -16,6 +16,7 @@ Today, we'll learn the five key verbs for manipulating data with `dplyr`:
 We'll also cover some more advanced data manipulation topics:
 
 * Performing operations on grouped data with [`group_by()`](https://dplyr.tidyverse.org/reference/group_by.html)
+* Data manipulation pipelines
 * Other useful `dplyr` verbs
 
 First, let's read our data into R.
@@ -293,14 +294,36 @@ customers %>%
                               Assets < Debt ~ "negative",
                               Assets == Debt ~ "zero")) %>% 
   group_by(Home, NetWorth) %>% 
-  summarize(Count = n())
+  summarize(Count = n()) %>% 
+  arrange(desc(Count))
 ```
 
-Great! Now let's make a bar plot of the data so we can compare these numbers visually. There are two ways to do this. One is that we can pipe the code above directly into our code for plotting data using the `ggplot2` package:
+Great! Now let's make a bar plot of the data so we can compare these numbers visually using the [`ggplot2`](https://ggplot2.tidyverse.org/) package. 
+
+There are two ways to do this. One is that we can save the output of our `dplyr` code to an object, then call `ggplot()` on that object. This is a good idea if we might use that same summarized data later (e.g., for another visualization, model, or to do additional operations on it) so that we don't have to keep rerunning that same code on the raw data.
 
 ```{r}
 library(ggplot2)
 
+customers_plot <- customers %>% 
+  select(-Records) %>%
+  filter(Job == "fixed") %>% 
+  select(id, Age, Marital, Home, Job, Seniority, Expenses, Income, Assets, Debt, Amount, Time, Price, Status) %>% 
+  arrange(desc(Amount)) %>% 
+  mutate(NetWorth = case_when(Assets > Debt ~ "positive",
+                              Assets < Debt ~ "negative",
+                              Assets == Debt ~ "zero")) %>% 
+  group_by(Home, NetWorth) %>% 
+  summarize(Count = n())  %>% 
+  arrange(desc(Count))
+
+ggplot(customers_plot, aes(x = Home, fill = NetWorth, y = Count)) +
+  geom_bar(position = "dodge", stat = "identity")
+```
+
+Another way to do this is to pipe the code above directly into our `ggplot2` code:
+
+```{r}
 customers %>% 
   select(-Records) %>%
   filter(Job == "fixed") %>% 
@@ -311,24 +334,7 @@ customers %>%
                               Assets == Debt ~ "zero")) %>% 
   group_by(Home, NetWorth) %>% 
   summarize(Count = n()) %>% 
+  arrange(desc(Count)) %>% 
 ggplot(aes(x = Home, fill = NetWorth, y = Count)) +
-  geom_bar(position = "dodge", stat = "identity")
-```
-
-Another way to do this is to save the output of our `dplyr` code to an object, then call `ggplot()` on that object. This is a good idea if we might use that same summarized data later (e.g., for another visualization, model, or to do additional operations on it) so that we don't have to keep rerunning that same code on the raw data.
-
-```{r}
-customers_plot <- customers %>% 
-  select(-Records) %>%
-  filter(Job == "fixed") %>% 
-  select(id, Age, Marital, Home, Job, Seniority, Expenses, Income, Assets, Debt, Amount, Time, Price, Status) %>% 
-  arrange(desc(Amount)) %>% 
-  mutate(NetWorth = case_when(Assets > Debt ~ "positive",
-                              Assets < Debt ~ "negative",
-                              Assets == Debt ~ "zero")) %>% 
-  group_by(Home, NetWorth) %>% 
-  summarize(Count = n()) 
-
-ggplot(customers_plot, aes(x = Home, fill = NetWorth, y = Count)) +
   geom_bar(position = "dodge", stat = "identity")
 ```
