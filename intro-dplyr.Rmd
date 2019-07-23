@@ -195,7 +195,6 @@ Traditionally in R this would be done using nested `ifelse()` statements.
 # customers$NetWorth <- ifelse(customers$Assets > customers$Debt, "positive",
 #                              ifelse(customers$Assets < customers$Debt, "negative",
 #                                     "zero"))
-# customers
 ```
 
 
@@ -267,7 +266,7 @@ customers %>%
   mutate(SDJobAmt = sd(Amount))
 ```
 
-`summarize()` will remove the top layer of grouping each time it's called, but `mutate()` will not. It's a good idea to `ungroup()` after you've completed a grouped operation so you don't forget about it later on in a data manipulation pipeline!
+`summarize()` will remove the top layer of grouping each time it's called, but `mutate()` will not. It's a good idea to `ungroup()` after you've completed a grouped operation so you don't forget about it later on in a data manipulation pipeline! Use `group_vars()` to check which grouping variables are currently active.
 
 # Data manipulation pipelines
 
