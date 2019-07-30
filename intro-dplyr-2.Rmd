@@ -155,7 +155,7 @@ First, let's count the payments for each customer:
 ```{r}
 payments_count <- payments %>% 
   group_by(id) %>% 
-  count(made_payment) %>% 
+  count(made_payment) %>%
   filter(made_payment == "yes") %>% 
   select(id, n) %>% 
   rename(payments_made = n)
@@ -203,7 +203,7 @@ inner_join(customers, payments_count)
 
 ## Filtering joins
 
-Filtering joins match observations in the same way as mutating joins, filter observations/rows rather than adding variables. Filtering joins are most useful for diagnosing join mismatches.
+Filtering joins match observations in the same way as mutating joins, but filter observations/rows rather than adding variables. Filtering joins are most useful for diagnosing join mismatches.
 
 `semi_join()` is used to keep all observations in `x` that have a match in `y`:
 
