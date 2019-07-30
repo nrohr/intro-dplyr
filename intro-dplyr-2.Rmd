@@ -91,7 +91,7 @@ homeowners <- dbGetQuery(con, '
 
 Of course, this requires that we know SQL! You might not know SQL, or you may not be very comfortable working with it, or you may not know the specific variant of SQL required to connect to this specific database, or you may already have some `dplyr` code written that you wish to translate into SQL.
 
-The good news is that `dplyr` will automatically translate your code into SQL to query the database for you^[SQL translation actually comes from a package called [`dbplyr`](https://dbplyr.tidyverse.org/index.html), which is included when you install `dplyr`. All you have to do is move your `collect()` statement to the bottom of your `dplyr` pipeline:
+The good news is that `dplyr` will automatically translate your code into SQL to query the database for you.^[SQL translation actually comes from a package called [`dbplyr`](https://dbplyr.tidyverse.org/index.html), which is included when you install `dplyr`.] All you have to do is move your `collect()` statement to the bottom of your `dplyr` pipeline:
 
 ```{r}
 customers <- tbl(con, "credit_data")
@@ -128,7 +128,7 @@ There are many [databases](https://db.rstudio.com/databases) that support SQL tr
 
 # Joining data sets
 
-One of the most common tasks in data analysis is joining multiple sets of data. In `dplyr`, there are several verbs that allow you to work with two tables of data at a time.
+One of the most common tasks in data analysis is joining multiple sets of data. In `dplyr`, there are several verbs that allow you to work with [two tables](https://dplyr.tidyverse.org/articles/two-table.html) of data at a time.
 
 To demonstrate, let's load our original data from CSV and an Excel spreadsheet with some payment data:
 
@@ -141,3 +141,143 @@ payments <- read_excel("payments.xlsx")
 payments
 ```
 
+Our new data set includes four columns: the customer's id, the month of the expected payment for each month in 2018, whether a payment was made, and the method of payment (if a payment was made).
+
+## Mutating joins
+
+The number of payments made last year is something we want to include in our analysis. To do so, there are two steps:
+
+1. Tally the number of payments for each `id`
+2. Join the summarized data with our main `customers` data set.
+
+First, let's count the payments for each customer:
+
+```{r}
+payments_count <- payments %>% 
+  group_by(id) %>% 
+  count(made_payment) %>% 
+  filter(made_payment == "yes") %>% 
+  select(id, n) %>% 
+  rename(payments_made = n)
+
+payments_count
+```
+
+Now we want to add a `payments_made` column to our `customers` data. To do so, we'll use one of dplyr's _mutating joins_. Each of dplyr's mutating joins takes two arguments, _x_ and _y_, which are the two data tables you want to join.
+
+`left_join()` includes all observations in `x` regardless of whether they match or not.
+
+```{r}
+left_join(customers, payments_count)
+```
+
+Note that we didn't specify _how_ to join the two tables, so dplyr automatically used all variables that appear in both tables (in this case, just `id`). This could be annoying or problematic if we have variables in `y` that have the same name as variables in `x` but which we don't want to match on:
+
+```{r}
+y <- payments_count %>% 
+  mutate(Records = "0")
+y
+
+left_join(customers, y)
+```
+
+We can fix that by adding `by = "id"` to our `left_join()`.
+
+`right_join()` includes all observations in `y` regardless of whether they match or not. It's just like `left_join(y, x)` only the columns are ordered differently.
+
+```{r}
+right_join(payments_count, customers)
+```
+
+`full_join()` includes all observations in both `x` and `y`:
+
+```{r}
+full_join(customers, payments_count)
+```
+
+`inner_join()` includes only observations that match in both `x` and `y`:
+
+```{r}
+inner_join(customers, payments_count)
+```
+
+## Filtering joins
+
+Filtering joins match observations in the same way as mutating joins, filter observations/rows rather than adding variables. Filtering joins are most useful for diagnosing join mismatches.
+
+`semi_join()` is used to keep all observations in `x` that have a match in `y`:
+
+```{r}
+semi_join(customers, payments_count)
+```
+
+We can see that only 4,394 of our customers in the `customers` data set appear in the `payments` data set.
+
+`anti_join()` drops all observations in `x` that have a match in `y` (or keeps all observations in `x` that do not have a match in `y`):
+
+```{r}
+anti_join(customers, payments_count)
+```
+
+# Joining more than 2 data sets
+
+`dplyr` doesn't include any functions for joining more than 2 data sets. Rather, you can use the two-table verbs iteratively to join multiple data sets in sequence.
+
+Suppose we have a third data set `activity` that includes a customer `id` and an `activity_score` (some measure of activity on their account):
+
+```{r message=FALSE}
+activity <- read_csv("activity.csv")
+activity
+```
+
+To join all three data sets, we can first join `customers` and `payments_count`, and then join the result with `activity`. We can even do this with pipes!
+
+```{r}
+all <- customers %>% 
+  left_join(payments_count) %>% 
+  left_join(activity)
+
+all
+```
+
+# Extra Credit: Pivoting data with `tidyr`
+
+Another task you may find yourself needing to complete often is "pivoting" data to longer or wider formats. This is often needed to take a "wide" data set from a spreadsheet or database and make it "tidy" or longer, where each row represents one observation and each column represents one variable. ^[https://cran.r-project.org/web/packages/tidyr/vignettes/tidy-data.html] ^[https://vita.had.co.nz/papers/tidy-data.pdf] ^[https://r4ds.had.co.nz/tidy-data.html]
+
+Our `payments` data exists in long format. Each row is one payment, and each payment has a few associated variables - customer `id`, `month`, and `source`.
+
+```{r}
+payments
+```
+
+We may find ourselves wanting to make this wider - for example, having one row per customer, and 1 column for each month. This format is often preferable for presenting data in tables, exporting to spreadsheets for non-R users, and is sometimes required for specific packages used in modeling or visualization.
+
+The [`tidyr` package](https://tidyr.tidyverse.org) includes two functions, `pivot_longer()` and `pivot_wider()`, that allow you to reshape data from long to wide format and vice versa.
+
+Let's say we want one row for each customer and 12 columns representing each month, with the values of those columns indicating whether or not a payment was made that month for that customer. We can do this with `pivot_wider()`:
+
+```{r}
+library(tidyr)
+payments_wide <- payments %>% 
+  pivot_wider(id_cols = id, names_from = month, values_from = made_payment)
+payments_wide
+```
+
+This format might be better for sending the raw data to a colleague for processing in Excel, even if it's not always ideal for using in R.
+
+Similarly, let's say we instead received the data in wide format and need to convert it to long format for our analysis. We can do that with `pivot_longer()`:
+
+```{r}
+payments_long <- payments_wide %>% 
+  pivot_longer(-id, names_to = "month", values_to = "made_payment")
+payments_long
+```
+
+__I installed `tidyr` but don't see `pivot_longer()` or `pivot_wider()`. What happened?__
+
+`pivot_longer()` and `pivot_wider()` are actually reimplementations of previous functions in `tidyr` called `gather()` and `spread()`. ^[Before `tidyr`, these functions were called `melt()` and `cast()` in the `reshape` and `reshape2` packages.] The tidyverse dev team found that the terminology was confusing for many people, and that even very experienced users (including the dev team themselves) often had to look up which verb they needed to use to reshape the data in the way they wanted. "Pivoting" data comes from the terminology of spreadsheets, and the new `pivot_longer()` and `pivot_wider()` functions were recently introduced to replace `gather()` and `spread()` in the hopes of making tidying data with `tidyr` more intuitive.
+
+As of this writing, the new functions are only available in the development version of `tidyr` available on GitHub, but not on CRAN. That means that if you `install.packages("tidyr")`, you most likely won't have those functions available. To get them, install `tidyr` from GitHub with:
+```
+remotes::install_github("tidyverse/tidyr")
+```

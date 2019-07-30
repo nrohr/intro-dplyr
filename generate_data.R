@@ -15,4 +15,8 @@ payments <- tibble(id = rep(1:4460, 12),
                                                            replace = TRUE))) %>% 
   filter(id %in% sample(1:4460, size = 4400))
 
+activity <- tibble(id = 1:4454,
+                   activity_score = runif(4454))
+
 writexl::write_xlsx(payments, "payments.xlsx")
+readr::write_csv(activity, "activity.csv")
