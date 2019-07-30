@@ -86,7 +86,8 @@ It's best to offload as much of your data manipulation to the database as possib
 homeowners <- dbGetQuery(con, '
   SELECT * 
   FROM "credit_data" 
-  WHERE ("Home" = \'owner\')')
+  WHERE ("Home" = \'owner\')
+  ')
 ```
 
 Of course, this requires that we know SQL! You might not know SQL, or you may not be very comfortable working with it, or you may not know the specific variant of SQL required to connect to this specific database, or you may already have some `dplyr` code written that you wish to translate into SQL.
