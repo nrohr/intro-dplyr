@@ -3,3 +3,141 @@ title: "Data Manipulation with `dplyr`: Session 2"
 output: html_notebook
 ---
 
+# A few more tips and tricks
+
+There are tons of special functions that make working with data using `dplyr` easier. Here are a few examples of common tasks you may find yourself needing to do. But first, let's load in our data:
+
+```{r message=FALSE}
+library(dplyr)
+library(readr)
+customers <- read_csv("credit_data.csv")
+customers
+```
+
+
+### Reordering large numbers of columns with `select()`
+
+You may find yourself wanting to move one or more columns to the beginning (left) or end (right) of your dataset. As we saw before, `select()` can be used to reorder your columns by listing them all in the order you want. This is fine when you have a small number of columns, but quickly becomes unmanageable when you have dozens, hundreds, or thousands of variables in your data.
+
+The `everything()` function can be used to list all variable names inside of `select()`, so you can easily move something to the beginning (left) of your data:
+
+```{r}
+customers %>% 
+  select(Amount, Price, everything())
+```
+
+Or to the end (right) of your data:
+
+```{r}
+customers %>% 
+  select(-Status, everything(), Status)
+```
+
+Note that in this latter example, we first have to deselect `Status` so that `everything()` does not keep it.
+
+### Renaming variables with `rename()`
+
+The `rename()` function allows you to change the name of existing variables without changing the data itself. For example, let's rename `Time` to `TimeMonths` to make it clearer that the unit of time requested for the loan is in months.
+
+```{r}
+customers %>% 
+  rename(TimeMonths = Time)
+```
+
+Note that we put the new name of the column first, then an equals sign and the current name of the column (just like with `mutate()`!)
+
+### Mutate and drop vars with `transmute()`
+
+You may find yourself wanting to create new variables and keep only those new variables. This can easily be done with `transmute()`, which allows you to take what would otherwise be a two-step process (`mutate()` %>% `select()`) and do it in one step:
+
+```{r}
+customers %>% 
+  transmute(TimeYears = Time/12)
+```
+
+# Querying databases with `dplyr`
+
+So far, we've been working with data from a local CSV file, but you may often find yourself working with larger amounts of data stored in a database. Luckily, `dplyr` makes it easy to query those data and even manipulate it before you collect it in R.
+
+To demonstrate, we'll use the same data set, but stored in SQL Server. Here is how we open a connection to the database:
+
+```{r}
+library(odbc)
+con <- dbConnect(odbc::odbc(), "SQL Server (DSN)", timeout = 10)
+```
+
+Many people will start by collecting the entire set of data in R, then proceeding with any data manipulation steps.
+
+```{r}
+customers <- tbl(con, "credit_data") %>% 
+  collect()
+
+homeowners <- customers %>% 
+  filter(Home == "owner")
+
+homeowners
+```
+
+If you really need all of that data as-is for your analysis, that's a perfectly fine approach. But you'll likely find yourself discarding large portions of your data by filtering rows or selecting columns. In these situations, pulling everything into R and then throwing most of it away is not optimal. It costs time and resources to pull that data from the database, store it in memory on your computer/server, and process it with `dplyr`.
+
+It's best to offload as much of your data manipulation to the database as possible. One way this can be done is through writing SQL code that is used to query the database. For example, we could get the same list of homeowners by:
+
+```{r}
+homeowners <- dbGetQuery(con, '
+  SELECT * 
+  FROM "credit_data" 
+  WHERE ("Home" = \'owner\')')
+```
+
+Of course, this requires that we know SQL! You might not know SQL, or you may not be very comfortable working with it, or you may not know the specific variant of SQL required to connect to this specific database, or you may already have some `dplyr` code written that you wish to translate into SQL.
+
+The good news is that `dplyr` will automatically translate your code into SQL to query the database for you^[SQL translation actually comes from a package called [`dbplyr`](https://dbplyr.tidyverse.org/index.html), which is included when you install `dplyr`. All you have to do is move your `collect()` statement to the bottom of your `dplyr` pipeline:
+
+```{r}
+customers <- tbl(con, "credit_data")
+
+homeowners <- customers %>% 
+  filter(Home == "owner") %>% 
+  collect()
+
+homeowners
+```
+
+To see how this works under the hood, try adding `show_query()` before `collect()`.
+
+This can work with even complex pipelines, like our earlier example:
+
+```{r}
+customers_plot <- customers %>% 
+  select(-Records) %>%
+  filter(Job == "fixed") %>% 
+  arrange(desc(Amount)) %>% 
+  mutate(NetWorth = case_when(Assets > Debt ~ "positive",
+                              Assets < Debt ~ "negative",
+                              Assets == Debt ~ "zero")) %>% 
+  group_by(Home, NetWorth) %>% 
+  summarize(Count = n())  %>% 
+  arrange(desc(Count)) %>% 
+  show_query() %>% 
+  collect()
+
+customers_plot
+```
+
+There are many [databases](https://db.rstudio.com/databases) that support SQL translation with `dplyr`, including Microsoft SQL Server, Apache Hive, Oracle, Google BigQuery, and several more. You can even [use `dplyr` to query data with Spark](https://spark.rstudio.com/dplyr/), and your `dplyr` code will be translated into Spark SQL so it can be run on your Spark cluster.
+
+# Joining data sets
+
+One of the most common tasks in data analysis is joining multiple sets of data. In `dplyr`, there are several verbs that allow you to work with two tables of data at a time.
+
+To demonstrate, let's load our original data from CSV and an Excel spreadsheet with some payment data:
+
+```{r message = FALSE}
+customers <- read_csv("credit_data.csv")
+customers
+
+library(readxl)
+payments <- read_excel("payments.xlsx")
+payments
+```
+
